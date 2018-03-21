@@ -1,5 +1,5 @@
 #include "event_driven.h"
-#include "tarefa1.h"
+#include "tarefa2.h"
 #include "pindefs.h"
 
 int pinos[3], estados[3], indice_disponivel;
