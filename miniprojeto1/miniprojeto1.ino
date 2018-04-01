@@ -63,12 +63,11 @@ void WriteNumberToSegment(byte Segment, byte Value){
   digitalWrite(LATCH_DIO,HIGH);
 }
 
-// Funcao responsavel por cancelar uma operaçao de alterar relogio ou alarme
+// Reseta as variaveis globais responsaveis pela configuração do relogio e alarme
 void resetar(){
   relogio_config = alarme_config = false;
   salvar_estado = 0;
 }
-
 
 void setup() {
   Serial.begin(9600);
@@ -85,10 +84,15 @@ void setup() {
   resetar();
 }
 
-ISR (PCINT1_vect) { // handle pin change interrupt for A0 to A5 here
+ISR (PCINT1_vect) {
   if((millis()-debounce_last_time)>debounce_delay){
     debounce_last_time = millis();
     salvar_estado = millis();
+
+    /*
+     * Caso o botão 1 seja apertado fora do estado de configuração, entrará no estado de configuração do relogio;
+     * Caso contrario, incrementará os minutos do que está sendo configurado no momento.
+     */
     if(digitalRead(KEY1)==0){
       Serial.println("KEY1");
       if(!relogio_config && !alarme_config){
@@ -105,6 +109,10 @@ ISR (PCINT1_vect) { // handle pin change interrupt for A0 to A5 here
         temporario.incrementar_hora();
       }
     }
+    /*
+     * Caso o botão 2 seja apertado fora do estado de configuração, entrará no estado de configuração do alarme;
+     * Caso contrario, incrementará os minutos do que está sendo configurado no momento.
+     */
     else if(digitalRead(KEY2)==0){
       Serial.println("KEY2");
       if(!relogio_config && !alarme_config){
@@ -121,33 +129,68 @@ ISR (PCINT1_vect) { // handle pin change interrupt for A0 to A5 here
         temporario.incrementar_minuto();
       }
     }
+    /*
+     * Caso o botão 3 seja apertado no estado de configuração, todas as configurações serão descartadas;
+     * Caso contrario, ativará ou desativará o alarme.
+     */
     else if(digitalRead(KEY3)==0){
       Serial.println("KEY3");
       if(relogio_config || alarme_config){
-        Serial.println("CANCELAR");
         resetar();
+        Serial.println("Configuracoes canceladas com sucesso!");
+      }
+      else{
+        alarme_ativo = !alarme_ativo;
+        if(alarme_ativo){
+          Serial.println("Alarme ativado com sucesso!");
+        }
+        else{
+          Serial.println("Alarme desativado com sucesso!");
+        }
       }
     }
   }
-}  
+}
 
+/*
+ * Exibe no display as horas/minutos do relogio passado por parametro, que pode ser o proprio relogio, o alarme ou o estado temporario de configuração.
+*/
+void exibir(Relogio r){
+  WriteNumberToSegment(0 , r.get_hora()/10);
+  WriteNumberToSegment(1 , r.get_hora()%10);
+  WriteNumberToSegment(2 , r.get_minuto()/10);
+  WriteNumberToSegment(3 , r.get_minuto()%10);
+}
+
+/*
+ * Transiciona os estados do visor, que pode exibir o relogio ou o estado temporario do que está sendo configurado no momento;
+ * Caso nennhum botão seja apertado num periodo de até 2 segundos, o estado temporario é consolidado.
+*/
 void loop() {
-  /* Update the display with the current counter value */
-  
-  WriteNumberToSegment(0 , relogio.get_hora()/10);
-  WriteNumberToSegment(1 , relogio.get_hora()%10);
-  WriteNumberToSegment(2 , relogio.get_minuto()/10);
-  WriteNumberToSegment(3 , relogio.get_minuto()%10);
-
-  if(relogio_config && (millis() - salvar_estado) > 2000){
-    relogio.set_hora(temporario.get_hora());
-    relogio.set_minuto(temporario.get_minuto());
-    resetar();
+  if(relogio_config){
+    if((millis() - salvar_estado) > 2000){
+      relogio.set_hora(temporario.get_hora());
+      relogio.set_minuto(temporario.get_minuto());
+      resetar();
+      Serial.println("Configuracoes do relogio salvas com sucesso!");
+    }
+    else{
+      exibir(temporario);
+    }
   }
-  else if(alarme_config && (millis() - salvar_estado) > 2000){
-    alarme.set_hora(temporario.get_hora());
-    alarme.set_minuto(temporario.get_minuto());
-    resetar();
+  else if(alarme_config){
+    if((millis() - salvar_estado) > 2000){
+      alarme.set_hora(temporario.get_hora());
+      alarme.set_minuto(temporario.get_minuto());
+      resetar();
+      Serial.println("Configuracoes do alarme salvas com sucesso!");
+    }
+    else{
+      exibir(temporario);
+    }
+  }
+  else{
+    exibir(relogio);
   }
 }
 
