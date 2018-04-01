@@ -4,7 +4,6 @@
 class Relogio{
 public:
   byte hora, minuto;
-
   Relogio(){
     hora = 0; 
     minuto = 0;
@@ -33,12 +32,17 @@ public:
       minuto = 0;
     }
   }
+  void clonar(Relogio relogio){
+    this->hora = relogio.get_hora();
+    this->minuto = relogio.get_minuto();
+  }
 };
 
 // Variaveis globais
 Relogio relogio, alarme, temporario;
-boolean relogio_config, alarme_config, alarme_ativo;
-unsigned long debounce_delay = 800, debounce_last_time = 0;
+volatile boolean relogio_config, alarme_config, alarme_ativo;
+volatile unsigned long salvar_estado;
+unsigned long debounce_delay = 100, debounce_last_time = 0;
 /* Segment byte maps for numbers 0 to 9 */
 const byte SEGMENT_MAP[] = {0xC0,0xF9,0xA4,0xB0,0x99,0x92,0x82,0xF8,0X80,0X90};
 /* Byte maps to select digit 1 to 4 */
@@ -60,8 +64,9 @@ void WriteNumberToSegment(byte Segment, byte Value){
 }
 
 // Funcao responsavel por cancelar uma operaçao de alterar relogio ou alarme
-void cancela(){
+void resetar(){
   relogio_config = alarme_config = false;
+  salvar_estado = 0;
 }
 
 
@@ -76,47 +81,51 @@ void setup() {
   pinMode(LATCH_DIO,OUTPUT);
   pinMode(CLK_DIO,OUTPUT);
   pinMode(DATA_DIO,OUTPUT);
+
+  resetar();
 }
 
 ISR (PCINT1_vect) { // handle pin change interrupt for A0 to A5 here
-  Serial.println('BOTAO APERTADO');
   if((millis()-debounce_last_time)>debounce_delay){
     debounce_last_time = millis();
+    salvar_estado = millis();
     if(digitalRead(KEY1)==0){
-      Serial.println('KEY1');
-      if(~relogio_config && ~alarme_config){
-        Serial.println('RELOGIO CONFIG TRUE');
+      Serial.println("KEY1");
+      if(!relogio_config && !alarme_config){
+        Serial.println("RELOGIO CONFIG TRUE");
         relogio_config = true;
+        temporario.clonar(relogio);
       }
       else if(relogio_config){
-        Serial.println('RELOGIO INCREMENTAR HORA');
-        relogio.incrementar_hora();
+        Serial.println("RELOGIO INCREMENTAR HORA");
+        temporario.incrementar_hora();
       }
       else if(alarme_config){
-        Serial.println('ALARME INCREMENTAR HORA');
-        alarme.incrementar_hora();
+        Serial.println("ALARME INCREMENTAR HORA");
+        temporario.incrementar_hora();
       }
     }
     else if(digitalRead(KEY2)==0){
-      Serial.println('KEY2');
-      if(~relogio_config && ~alarme_config){
-        Serial.println('ALARME CONFIG TRUE');
+      Serial.println("KEY2");
+      if(!relogio_config && !alarme_config){
+        Serial.println("ALARME CONFIG TRUE");
         alarme_config = true;
+        temporario.clonar(alarme);
       }
       else if(relogio_config){
-        Serial.println('RELOGIO INCREMENTAR MINUTO');
-        relogio.incrementar_minuto();
+        Serial.println("RELOGIO INCREMENTAR MINUTO");
+        temporario.incrementar_minuto();
       }
       else if(alarme_config){
-        Serial.println('ALARME INCREMENTAR MINUTO');
-        alarme.incrementar_minuto();
+        Serial.println("ALARME INCREMENTAR MINUTO");
+        temporario.incrementar_minuto();
       }
     }
     else if(digitalRead(KEY3)==0){
-      Serial.println('KEY3');
+      Serial.println("KEY3");
       if(relogio_config || alarme_config){
-        Serial.println('CANCELAR');
-        relogio_config = alarme_config = false;
+        Serial.println("CANCELAR");
+        resetar();
       }
     }
   }
@@ -124,9 +133,21 @@ ISR (PCINT1_vect) { // handle pin change interrupt for A0 to A5 here
 
 void loop() {
   /* Update the display with the current counter value */
+  
   WriteNumberToSegment(0 , relogio.get_hora()/10);
   WriteNumberToSegment(1 , relogio.get_hora()%10);
   WriteNumberToSegment(2 , relogio.get_minuto()/10);
   WriteNumberToSegment(3 , relogio.get_minuto()%10);
+
+  if(relogio_config && (millis() - salvar_estado) > 2000){
+    relogio.set_hora(temporario.get_hora());
+    relogio.set_minuto(temporario.get_minuto());
+    resetar();
+  }
+  else if(alarme_config && (millis() - salvar_estado) > 2000){
+    alarme.set_hora(temporario.get_hora());
+    alarme.set_minuto(temporario.get_minuto());
+    resetar();
+  }
 }
 
