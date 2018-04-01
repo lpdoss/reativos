@@ -36,13 +36,37 @@ public:
     this->hora = relogio.get_hora();
     this->minuto = relogio.get_minuto();
   }
+  byte comparar(Relogio relogio){
+    if(this->hora == relogio.get_hora()){
+      if(this->minuto > relogio.get_minuto()){
+        return 1;
+      }
+      else if(this->minuto < relogio.get_minuto()){
+        return -1;
+      }
+    }
+    else if(this->hora > relogio.get_hora()){
+      return 1;      
+    }
+    else if(this->hora < relogio.get_hora()){
+      return -1;
+    }
+    return 0;
+  }
+  void avancar_relogio(){
+    incrementar_minuto();
+    if(get_minuto() == 0){
+      incrementar_hora();
+    }
+  }
 };
 
 // Variaveis globais
 Relogio relogio, alarme, temporario;
-volatile boolean relogio_config, alarme_config, alarme_ativo;
-volatile unsigned long salvar_estado;
-unsigned long debounce_delay = 100, debounce_last_time = 0;
+volatile boolean relogio_config, alarme_config, alarme_ativo, despertando;
+volatile unsigned long salvar_estado, intervalo_despertador, ultimo_incremento;
+byte contador;
+unsigned long debounce_delay, debounce_last_time;
 /* Segment byte maps for numbers 0 to 9 */
 const byte SEGMENT_MAP[] = {0xC0,0xF9,0xA4,0xB0,0x99,0x92,0x82,0xF8,0X80,0X90};
 /* Byte maps to select digit 1 to 4 */
@@ -63,17 +87,21 @@ void WriteNumberToSegment(byte Segment, byte Value){
   digitalWrite(LATCH_DIO,HIGH);
 }
 
-// Reseta as variaveis globais responsaveis pela configuração do relogio e alarme
+/*
+ * Reseta as variaveis globais responsaveis pela configuração do relogio e alarme entre outras
+*/
 void resetar(){
-  relogio_config = alarme_config = false;
-  salvar_estado = 0;
+  relogio_config = alarme_config = despertando = false;
+  salvar_estado = debounce_last_time = intervalo_despertador = contador = 0;
+  debounce_delay = 100;
 }
 
 void setup() {
   Serial.begin(9600);
   pinMode(LED1, OUTPUT); pinMode(LED2, OUTPUT); pinMode(LED3, OUTPUT); pinMode(LED4, OUTPUT);
   digitalWrite(LED1,HIGH); digitalWrite(LED2,HIGH); digitalWrite(LED3,HIGH); digitalWrite(LED4,HIGH);
-  pinMode(KEY1, INPUT_PULLUP); pinMode(KEY2, INPUT_PULLUP); pinMode(KEY3, INPUT_PULLUP);  
+  pinMode(KEY1, INPUT_PULLUP); pinMode(KEY2, INPUT_PULLUP); pinMode(KEY3, INPUT_PULLUP);
+  pinMode(BUZZ,OUTPUT); tone(BUZZ,256); noTone(BUZZ);
   pciSetup(KEY1); pciSetup(KEY2); pciSetup(KEY3);
 
   /* Set DIO pins to outputs */
@@ -82,6 +110,7 @@ void setup() {
   pinMode(DATA_DIO,OUTPUT);
 
   resetar();
+  alarme_ativo = false;
 }
 
 ISR (PCINT1_vect) {
@@ -163,6 +192,39 @@ void exibir(Relogio r){
 }
 
 /*
+ * Verifica o relogio se esta coincidente com o alarme e caso afirmativo, emite-se um efeito sonoro.
+*/
+void verificar_alarme(){
+  if(alarme_ativo && relogio.comparar(alarme) == 0){
+    if(!despertando){
+      intervalo_despertador = millis();
+      despertando = true;
+    }
+    else if((millis() - intervalo_despertador)<100){
+      tone(BUZZ,1500);
+    }
+    else if((millis() - intervalo_despertador)<200){
+      noTone(BUZZ);
+    }
+    else{
+      intervalo_despertador = millis();
+    }
+    Serial.println("Tá aqui?");
+  }
+  despertando = false;
+}
+
+/*
+ * Avança as horas
+*/
+void avancar_relogio(){
+  if((millis() - ultimo_incremento)>60000){
+    ultimo_incremento = millis();
+    relogio.avancar_relogio();
+  }
+}
+
+/*
  * Transiciona os estados do visor, que pode exibir o relogio ou o estado temporario do que está sendo configurado no momento;
  * Caso nennhum botão seja apertado num periodo de até 2 segundos, o estado temporario é consolidado.
 */
@@ -173,6 +235,7 @@ void loop() {
       relogio.set_minuto(temporario.get_minuto());
       resetar();
       Serial.println("Configuracoes do relogio salvas com sucesso!");
+      ultimo_incremento = millis();
     }
     else{
       exibir(temporario);
@@ -184,12 +247,15 @@ void loop() {
       alarme.set_minuto(temporario.get_minuto());
       resetar();
       Serial.println("Configuracoes do alarme salvas com sucesso!");
+      ultimo_incremento = millis();
     }
     else{
       exibir(temporario);
     }
   }
   else{
+    avancar_relogio();
+    verificar_alarme();
     exibir(relogio);
   }
 }
