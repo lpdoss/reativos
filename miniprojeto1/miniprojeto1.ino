@@ -170,6 +170,10 @@ ISR (PCINT1_vect) {
         resetar_configs();
         Serial.println("Configuracoes canceladas com sucesso!");
       }
+      else if (alarme_ativo) {
+        alarme_ativo = false;
+        digitalWrite(LED4, HIGH);
+      }
       else {
         alarme_ativo = !alarme_ativo;
         if (alarme_ativo) {
