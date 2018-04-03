@@ -107,7 +107,7 @@ void setup() {
   pinMode(LED1, OUTPUT); pinMode(LED2, OUTPUT); pinMode(LED3, OUTPUT); pinMode(LED4, OUTPUT);
   digitalWrite(LED1, HIGH); digitalWrite(LED2, HIGH); digitalWrite(LED3, HIGH); digitalWrite(LED4, HIGH);
   pinMode(KEY1, INPUT_PULLUP); pinMode(KEY2, INPUT_PULLUP); pinMode(KEY3, INPUT_PULLUP);
-  pinMode(BUZZ,OUTPUT); noTone(BUZZ);
+  pinMode(BUZZ,OUTPUT); digitalWrite(BUZZ, HIGH);
   pciSetup(KEY1); pciSetup(KEY2); pciSetup(KEY3);
 
   /* Set DIO pins to outputs */
@@ -206,17 +206,18 @@ void verificar_alarme() {
     }
     else if ((millis() - intervalo_despertador) < 100) {
       //Serial.print("vvv");
-      tone(BUZZ,1500);
+      digitalWrite(BUZZ, LOW);
     }
     else if ((millis() - intervalo_despertador) < 200) {
       //Serial.print("...");
-      noTone(BUZZ);
+      digitalWrite(BUZZ, HIGH);
     }
     else {
       intervalo_despertador = millis();
     }
   }
   else {
+    digitalWrite(BUZZ, HIGH);
     despertando = false;
   }
 }
@@ -243,6 +244,9 @@ void loop() {
       resetar_configs();
       ultimo_incremento = millis(); // Começa a rolar o tempo a partir do salvamento do novo estado do relogio
       Serial.println("Configuracoes do relogio salvas com sucesso!");
+      digitalWrite(BUZZ, LOW);
+      delay(100);
+      digitalWrite(BUZZ, HIGH);
       digitalWrite(LED1, HIGH);
     }
     else {
@@ -255,6 +259,9 @@ void loop() {
       alarme.set_minuto(temporario.get_minuto());
       resetar_configs();
       Serial.println("Configuracoes do alarme salvas com sucesso!");
+      digitalWrite(BUZZ, LOW);
+      delay(100);
+      digitalWrite(BUZZ, HIGH);
       digitalWrite(LED2, HIGH);
     }
     else {
