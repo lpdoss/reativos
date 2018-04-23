@@ -9,9 +9,15 @@ local intervaloAtaques = 5
 local ultimoAtaque = 0
 local tolerancia = 10
 local terminou = false
+local clicks = 10
 
 
--- tabelas para objetos da aplicação
+-- Tabelas para objetos da aplicação
+--[[ bola:
+    - Tabela responsável por controlar os disparos efetuados pelo personagem, cada disparo 'instancia' uma bola que vai na direção onde o mouse foi clicado. Caso esse disparo acerte o disparo inimigo, tanto a bola quanto o disparo inimigo desaparecem e é incrementado um placar de acertos.
+    - X e Y recebidos como parametros equivalem as coordenadas do topo do personagem que efetuou o disparo.
+    - Possui alem dos metodos draw (responsavem por desenhar o objeto na tela), update (responsavel por atualizar os atributos do objeto) e mousepressed (responsavel por tratar eventos de click do objeto), os metodos getEstaFora, que retorna se a bola saiu ou não da tela, e getLocalização, que retorna as coordenadas atuais do disparo.
+]]
 local bola = function(x, y)
     local x = x
     local y = y
@@ -20,7 +26,7 @@ local bola = function(x, y)
     local altura = 10
     local largura = 10
     local deslocamento = 20
-    local fora = false
+    local estaFora = false
             
     return {
         draw = function()
@@ -32,7 +38,7 @@ local bola = function(x, y)
                 x = x + velocidadeX
                 y = y + velocidadeY
             else
-                fora = true
+                estaFora = true
             end
         end,
         mousepressed = function(direcaoX, direcaoY)
@@ -48,8 +54,8 @@ local bola = function(x, y)
                 velocidadeY = -deslocamento*math.sin(angulo)
             end
         end,
-        foraDaTela = function()
-            return fora
+        getEstaFora = function()
+            return estaFora
         end,
         getLocalizacao = function()
             return x+(largura/2), y-(altura/2)
@@ -57,6 +63,11 @@ local bola = function(x, y)
     }
 end
 
+--[[ inimigo
+    - Tabela responsável por controlar os disparos efetuados pelo inimigo. O personagem sempre é o alvo.
+    - PX e PY recebidos como parametros equivalem as coordenadas do personagem.
+    - Possui alem dos metodos draw e update, analogo aos outros, os metodos publicos getEstaFora, que retorna se o disparo inimigo saiu ou não da tela, e getLocalização, que retorna as coordenadas atuais do disparo inimigo. Tambem há um metodo privado iniciaVelocidades, que calcula as componentes de velocidade de deslocamento em X e Y do disparo inimigo.
+]]
 local inimigo = function(px, py)
     local x = math.random(0, love.graphics.getWidth())
     local y = 0
@@ -65,9 +76,11 @@ local inimigo = function(px, py)
     local altura = 10
     local largura = 10
     local deslocamento = 5
-    local fora = false
+    local estaFora = false
     local velocidadeX = nil
     local velocidadeY = nil
+    
+    -- metodos privados
     local iniciaVelocidades = function()
         local angulo = math.abs(math.atan((y-destinoY)/(x-destinoX)))
         if destinoX > x then
@@ -82,7 +95,8 @@ local inimigo = function(px, py)
         end
     end
     iniciaVelocidades()
-                
+    
+    -- metodos publicos
     return {
         draw = function()
             love.graphics.setColor(255, 0, 0)
@@ -94,13 +108,13 @@ local inimigo = function(px, py)
                     x = x + velocidadeX
                     y = y + velocidadeY
                 else
-                    fora = true
+                    estaFora = true
                 end
                 coroutine.yield()
             end
         end),
-        foraDaTela = function()
-            return fora
+        getEstaFora = function()
+            return estaFora
         end,
         getLocalizacao = function()
             return x+(largura/2), y-(altura/2)
@@ -108,17 +122,21 @@ local inimigo = function(px, py)
     }
 end
 
+--[[ personagem
+    - Elemento principal do jogo, controlado pelas teclas w (cima), a (esquerda), s (baixo) e d (direita), alem dos disparos efetuados pelo mouse. Pode se mover por todos os cantos da tela, apenas na tela. Esse personagem possui até 4 unidades de saude, que quando atinge zero, finaliza o jogo.
+    - Alem dos metodos draw, update e keypressed, possui os metodos getLocalizacao, decrementarSaude (que diminui uma unidade de saude do personagem), getSaude (que retorna a atual unidade de saude do personagem) e resetarPersonagem (que repõe os atributos iniciais do personagem).
+]]
 local personagem = function()
     local x = love.graphics.getWidth()/2
     local y = love.graphics.getHeight()
     local altura = 20
     local largura = 10
-    local deslocamento = 20
+    local deslocamento = 15
     local saude = 4
             
     return {    
         draw = function()
-            love.graphics.setColor(255, 0, 0)
+            love.graphics.setColor(0, 0, 200)
             love.graphics.rectangle("fill", x, y-altura, largura, altura)
         end,
         update = function(dt)
@@ -154,6 +172,10 @@ local personagem = function()
     }
 end
 
+--[[ placar
+    - Tabela responsavel por exibir o tempo decorrido, os disparos acertados no inimigo e os records ao termino das partidas, caso haja um novo.
+    - Possui os metodos draw, que é analogo aos outros, porem com o parametro saude do personagem, update (que só incrementa o tempo caso a partida esteja rolando), incrementarAcertps (que aumenta uma unidade a quantidade de acertos), resetarPlacar (que volta os atributos aos valores iniciais) e getAcertos (que retorna a quantidade de acertos do personagem).
+]]
 local placar = function()
     local x = 10
     local y = 10
@@ -165,13 +187,13 @@ local placar = function()
     local houveAcertosRecord = false
     
     local terminarPartida = function()
-        if tempo > tempoRecord then            
-            tempoRecord = tempo
+        if tempo*acertos > tempoRecord then            
+            tempoRecord = tempo*acertos
             houveTempoRecord = true
         end
         if acertos > acertosRecord then
             acertosRecord = acertos
-            houveAcertosRecord = true
+            houveAcertosRecord = trued
         end
     end
     
@@ -182,13 +204,14 @@ local placar = function()
             love.graphics.print(string.format('Núm. de acertos: %d', acertos), x, y+22, 0, 1.2)
             love.graphics.print(string.format('Saúde: %d', saude), love.graphics.getWidth()-120, 10, 0, 2)
             if terminou then
+                love.graphics.print(string.format('Fim de jogo! Dê %d click(s) para voltar...', clicks), 10, love.graphics.getHeight()/2 - 60, 0, 3)
                 terminarPartida()
             end
             if houveTempoRecord then
-                love.graphics.print(string.format('Novo Record -> Tempo decorrido: %.2f', tempoRecord), 10, love.graphics.getHeight()/2, 0, 3)
+                love.graphics.print(string.format('Novo Record -> Tempo sobrevivido + bonus de acertos: %.2f', tempoRecord), 10, love.graphics.getHeight()/2, 0, 1.6)
             end
             if houveAcertosRecord then
-                love.graphics.print(string.format('Novo Record -> Núm. de acertos: %d', acertosRecord), 10, love.graphics.getHeight()/2 + 60, 0, 3)
+                love.graphics.print(string.format('Novo Record -> Núm. de acertos: %d', acertosRecord), 10, love.graphics.getHeight()/2 + 60, 0, 1.6)
             end
         end,
         update = function(dt)
@@ -198,6 +221,9 @@ local placar = function()
         end,
         incrementarAcertos = function()
             acertos = acertos + 1
+            if acertos > 0 and acertos % 5 == 0 and intervaloAtaques > 1 then -- no minimo, deixar esperar 1 segundo para o proximo ataque inimigo
+                intervaloAtaques = intervaloAtaques - 1
+            end
         end,
         resetarPlacar = function()
             tempo = 0
@@ -205,12 +231,17 @@ local placar = function()
             houveTempoRecord = false
             houveAcertosRecord = false
         end,
+        getAcertos = function()
+            return acertos
+        end
     }
 end
 
 
 
--- metodos privados
+--[[
+    Função responsavel por iterar sobre a localização dos objetos renderizados na tela e adicionar a respectiva tabela se houve colisão entre os disparos ou colisão entre o disparo inimigo e o personagem.
+]]
 local procurarColisoes = function()
     for j=1,#ataques do
         local ataquex, ataquey = ataques[j].getLocalizacao()
@@ -228,6 +259,9 @@ local procurarColisoes = function()
     end
 end
 
+--[[
+    Função responsavel por iterar sobre as tabelas de colisões e remoção dos objetos colididos, com exceção do personagem, que é decrementado a saude até que não tenha mais, finalizando a partida.
+]]
 local removerColididos = function()
     for i=1,#ataquesInterceptados do
         table.remove(bolas, ataquesInterceptados[i][1])
@@ -249,15 +283,23 @@ local removerColididos = function()
     ataquesRecebidos = {}
 end
 
+--[[
+    Função responsavel por resetar os objetos principais do jogo, ou seja, o personagem e o placar, alem de atribuir o valor false a variavel terminou, que é a variavel de estado responsavel por manter alguns updates rodando, alem do tempo de espera entre os ataques inimigos.
+]]
 local novaPartida = function()
     personagem.resetarPersonagem()
     placar.resetarPlacar()
+    intervaloAtaques = 5
+    clicks = 10
     terminou = false
 end
 
 
 
 -- metodos principais da aplicação
+--[[
+    Metodo que carrega os principais elementos do jogo
+]]
 function love.load()
     love.graphics.setBackgroundColor(255,255,255)
     love.keyboard.setKeyRepeat(true)
@@ -265,6 +307,7 @@ function love.load()
     placar = placar()
 end
 
+--[[ Metodo responsavel por atualizar as informações dos elementos do jogo ]]
 function love.update(dt)
     if terminou == false then
         -- atualiza o personagem
@@ -280,7 +323,7 @@ function love.update(dt)
         -- atualiza as bolas
         for i=1,#bolas do
             bolas[i].update()
-            if bolas[i].foraDaTela() then
+            if bolas[i].getEstaFora() then
                 table.insert(bolasFora, i)
             end
         end
@@ -288,7 +331,7 @@ function love.update(dt)
         -- atualiza os ataques
         for i=1,#ataques do
             ataques[i].update()
-            if ataques[i].foraDaTela() then
+            if ataques[i].getEstaFora() then
                 table.insert(ataquesFora, i)
             end
         end
@@ -313,6 +356,9 @@ function love.update(dt)
     end
 end
 
+--[[
+    Método responsavel por desenhar na tela os elementos do jogo
+]]
 function love.draw()
     personagem.draw()
     placar.draw(personagem.getSaude())
@@ -324,15 +370,23 @@ function love.draw()
     end
 end
 
+--[[
+    Método responsavel por detectar apertos nas teclas do telado, efetuando as ações necessarias
+]]
 function love.keypressed(key)
     personagem.keypressed()
 end
 
+--[[
+    Método responsavel por detectar clicks no mouse, efetuando as ações necessarias
+]]
 function love.mousepressed(x, y)
     if terminou == false then
         local bola = bola(personagem.getLocalizacao())
         bola.mousepressed(x, y)
         table.insert(bolas, bola)
+    elseif clicks > 1 then
+        clicks = clicks - 1
     else
         novaPartida()
     end
