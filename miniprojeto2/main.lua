@@ -361,13 +361,13 @@ end
 ]]
 function love.draw()
     personagem.draw()
-    placar.draw(personagem.getSaude())
     for i=1,#bolas do
         bolas[i].draw()
     end
     for i=1,#ataques do
         ataques[i].draw()
     end
+    placar.draw(personagem.getSaude())
 end
 
 --[[
