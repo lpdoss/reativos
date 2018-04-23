@@ -193,7 +193,7 @@ local placar = function()
         end
         if acertos > acertosRecord then
             acertosRecord = acertos
-            houveAcertosRecord = trued
+            houveAcertosRecord = true
         end
     end
     
@@ -208,7 +208,7 @@ local placar = function()
                 terminarPartida()
             end
             if houveTempoRecord then
-                love.graphics.print(string.format('Novo Record -> Tempo sobrevivido + bonus de acertos: %.2f', tempoRecord), 10, love.graphics.getHeight()/2, 0, 1.6)
+                love.graphics.print(string.format('Novo Record -> Tempo sobrevivido * bonus (acertos): %.2f', tempoRecord), 10, love.graphics.getHeight()/2, 0, 1.6)
             end
             if houveAcertosRecord then
                 love.graphics.print(string.format('Novo Record -> Núm. de acertos: %d', acertosRecord), 10, love.graphics.getHeight()/2 + 60, 0, 1.6)
