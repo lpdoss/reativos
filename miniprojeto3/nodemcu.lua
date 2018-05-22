@@ -1,6 +1,6 @@
 -- Variaveis globais da aplicacao
 ---- Variavel contendo a chave para obter a localizacao com o Google
-local chave = "AIzaSyCxQP6A1zvlvIFuePn4DRJwY5CbxX7DwK0"
+local chave = "AIzaSyDd7BIfb1wjikYXcitNt_wMwQXcz9jxqYw"
 
 ---- Variaveis para configuracao e conexao wifi
 local configurar_rede = false
@@ -8,11 +8,11 @@ local usuario = ""
 local senha = ""
 
 ---- Variaveis para configuracao do servidor mosquitto
-local topico_geolocalizacao = "nodemcu_casa_meier"
-local topico_default = "testes_casa"
+local topico_requisicao_geolocalizacao = "requisicao_geolocalizacao"
+local topico_geolocalizacao = "geolocalizacao"
 local nodemcu_topicos = {
-    [topico_geolocalizacao]=0, 
-    [topico_default]=1
+    [topico_requisicao_geolocalizacao]=0, 
+    [topico_geolocalizacao]=1
 }
 local mqtt_client = nil
 local nome_cliente = "cliente_nodemcu"
@@ -52,6 +52,7 @@ local configurar_wifi = function()
     }
     wifi.setmode(wifi.STATION)
     wifi.sta.config(config)
+    wifi.sta.autoconnect(1)
 end
 
 ---- Funcao responsavel por conectar no wifi configurado
@@ -72,12 +73,12 @@ end
 local obter_geolocalizacao = function(wifi_tables, topico)
     local url = "https://www.googleapis.com/geolocation/v1/geolocate?key=" .. chave
     local headers = "Content-Type: application/json\r\n"
-    local body = '{"wifiAccessPoints": [' .. wifi_tables .. ']}'
+    local body = '{"considerIp": "false","wifiAccessPoints": [' .. wifi_tables .. ']}'
     local response = function(code, data)
         local resposta_mensagem = ""
         local resposta_callback = nil
         if topico == nil then
-            topico = topico_default
+            topico = topico_geolocalizacao
         end
         if (code < 0) then
             print("Falha no pedido de geolocalizacao. Codigo: ", code)
@@ -134,16 +135,16 @@ local seguir_topicos = function()
         print("Inscricoes efetuadas com sucesso!")
         local messageCallback = function(cliente, topico, mensagem)
             print("Mensagem recebida! Detalhes: Topico->".. topico .. ", Mensagem->" .. mensagem)
-            if topico == topico_geolocalizacao then
+            if topico == topico_requisicao_geolocalizacao then
                 solicitar_geolocalizacao(mensagem)
             end
         end
         mqtt_client:on("message", messageCallback)
     end
     mqtt_client:subscribe(nodemcu_topicos, subscribeCallback)
-    for topico, qos in pairs(nodemcu_topicos) do
-        enviar_mensagem(topico, "Pronto para receber pedidos!")
-    end
+    --for topico, qos in pairs(nodemcu_topicos) do
+    --    enviar_mensagem(topico, "Pronto para receber pedidos!")
+    --end
 end
 
 ---- Funcao responsavel por conectar ao servidor mosquitto, 
@@ -166,7 +167,6 @@ local setup = function()
     if configurar_rede then
         configurar_wifi()
     end
-    conectar_wifi()
 
     -- Inicialização dos LEDs
     gpio.mode(led1, gpio.OUTPUT)
