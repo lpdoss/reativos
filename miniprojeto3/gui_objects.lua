@@ -9,25 +9,33 @@ function GUI_Objects:newButton(x, y, text)
     -- 20px + tamanho texto
     local width  = 20 + 5*string.len(name)
     local height = 50
+    local button_clicked = false
+    local cor_fundo = {0.7,0.7,0.7}
+    local cor_texto = {0, 0, 0, 255}
   
     return {
-    mouseSobre = 
-      function ()
-        local mX = love.mouse.getX()
-        local mY = love.mouse.getY()
-  
-        if mX >= pX and mX <= pX+width and mY >= pY and mY <= pY+height then
-          return true
+      mousepressed = function (x, y, key)
+        if x >= pX and x <= pX+width and y >= pY and y <= pY+height then
+          button_clicked = true
         end
-        return false
+        return button_clicked
       end,
-    draw = 
-      function ()
+      mousereleased = function (x, y, key)
+        button_clicked = false
+      end,
+      draw = function ()
+        if button_clicked then
+          cor_fundo = {50,50,50}
+          --cor_texto = {0.7,0.7,0.7}
+        else
+          cor_fundo = {0.7,0.7,0.7}
+          --cor_texto = {0, 0, 0, 255}
+        end
         -- background
-        love.graphics.setColor(0.7,0.7,0.7)
+        love.graphics.setColor(unpack(cor_fundo))
         love.graphics.rectangle("fill", pX, pY, width, height)
         -- text
-        love.graphics.setColor(0, 0, 0, 255)
+        love.graphics.setColor(unpack(cor_texto))
         love.graphics.print(name, pX+5, pY+18)
       end,
     }

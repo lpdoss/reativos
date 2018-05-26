@@ -2,43 +2,73 @@ local mqtt = require("mqtt_library")
 local gui_objects = require("gui_objects")
 local json = require("json")
 
-topico = ''
-mensagem = ''
 
--- Botões e ações
-local button_PedirLocal
-local CanalPedidoLocal = "nodemcu_casa_meier"
-local CanalRespostaLocal = "testes_casa_meier_resposta"
+-- GUI
+local caixa_de_texto = nil
+local botao_topico = nil
+local botao_pedido = nil
+
+
+-- MQTT
+local mqtt_client = nil
+local nome_cliente = "cliente_love"
+local topico_default = "requisicao_geolocalizacao"
+local topico_default_response = "requisicao_geolocalizacao_response"
+local mensagem_default = ""
+local topico_custom = ""
+local topico_custom_response = ""
+local mensagem_custom = ""
+
+-- FUNÇÕES LOCAIS
 local function PedirLocal()
-  mqtt_client:publish(CanalPedidoLocal, CanalRespostaLocal)
+  mqtt_client:publish(topico_default, topico_default_response)
 end
 
-local textbox_NovoCanal = nil
-local CanalEscolhido = "Nenhum"
-
-local button_MudarCanal
 local function MudarCanal()
-  mqtt_client:unsubscribe({CanalEscolhido})
-  CanalEscolhido = textbox_NovoCanal.getText()
-  if CanalEscolhido == "" then
-    CanalEscolhido = "Nenhum"
+  novo_topico_custom = caixa_de_texto.getText()
+  if novo_topico_custom then
+    mqtt_client:unsubscribe({topico_custom})
+    mqtt_client:subscribe({novo_topico_custom})
+    topico_custom = novo_topico_custom
   end
-  mqtt_client:subscribe({CanalEscolhido})
 end
 
 
-
-
--- Callback executa no recebimento de uma mensagem
-function mqttcb(topic, message)
-    topico = topic
-    mensagem = message
-  if topic == CanalEscolhido then
-    print(CanalEscolhido)
-  elseif topic == CanalRespostaLocal then
-    print(CanalRespostaLocal)
+-- LOVE
+function love.load()
+  local mqttCallback = function(t, m)
+    if t == topico_default then
+      mensagem_default = m
+    elseif t == topico_custom then
+      mensagem_custom = m
+    end
   end
-   
+  mqtt_client = mqtt.client.create("test.mosquitto.org", 1883, mqttCallback)
+  mqtt_client:connect(nome_cliente)
+  mqtt_client:subscribe({topico_default})
+  
+  love.graphics.setDefaultFilter("nearest", "nearest")
+  love.graphics.setBackgroundColor(255,255,255)
+  caixa_de_texto = gui_objects:newTextbox(10, (love.graphics.getHeight()/4), "Topico para pedidos")
+  botao_topico = gui_objects:newButton(230, (love.graphics.getHeight()/4), "Salvar topico")
+  botao_pedido = gui_objects:newButton(10, 2*(love.graphics.getHeight()/4), "Pedir localização")
+end
+
+function love.draw()
+  love.graphics.setColor(0, 0, 0)
+  
+  -- Topicos e mensagens
+  love.graphics.printf("TÓPICO DEFAULT: " .. topico_default .. "\nMENSAGEM: " .. mensagem_default, 10, 2*(love.graphics.getHeight()/4)+60, 600, "left", 0, 2, 2)
+  love.graphics.print("TÓPICO CUSTOM: " .. topico_custom .. "\nMENSAGEM: " .. mensagem_custom, 10, love.graphics.getHeight()/4 - 50, 0, 2, 2)
+  
+  -- Caixa de texto e botoes
+  caixa_de_texto.draw()
+  botao_topico.draw()
+  botao_pedido.draw()
+end
+
+function love.update(dt)
+  mqtt_client:handler()  
 end
 
 function love.keypressed(key)
@@ -46,57 +76,31 @@ function love.keypressed(key)
     love.event.quit(0)
   end
   if key == 'z' then
-    mqtt_client:publish(CanalEscolhido, "Teste Local")
+    mqtt_client:publish(topico_custom, "Teste Local")
   end
   
   -- Se ativa apaga o texto da caixa
-  textbox_NovoCanal.keypressed(key)
+  caixa_de_texto.keypressed(key)
 end
 
 function love.mousepressed(x, y, key)
-  textbox_NovoCanal.trigger(key)
-    if button_PedirLocal.mouseSobre() then
+  botao_pedido_clicado = botao_pedido.mousepressed(x, y, key)
+  botao_topico_clicado = botao_topico.mousepressed(x, y, key)
+  
+  caixa_de_texto.trigger(key)
+    if botao_pedido_clicado then
       PedirLocal()
     end
-    if button_MudarCanal.mouseSobre() then
+    if botao_topico_clicado then
       MudarCanal()
     end
 end
 
-function love.load()
-  love.graphics.setDefaultFilter("nearest", "nearest")
-  love.graphics.setBackgroundColor(255,255,255)
-  
-  
-  mqtt_client = mqtt.client.create("test.mosquitto.org", 1883, mqttcb)
-  mqtt_client:connect("leleledafederal")
-  mqtt_client:subscribe({"testes_casa_meier_resposta"})
-  
-  textbox_NovoCanal = gui_objects:newTextbox(10, (love.graphics.getHeight()/4), "NodeMCU")
-  button_MudarCanal = gui_objects:newButton(230, (love.graphics.getHeight()/4), "Alterar Canal")
-  
-  button_PedirLocal = gui_objects:newButton(10, 2*(love.graphics.getHeight()/4), "Pedir Localização")
-end
-
-function love.draw()
-  love.graphics.setColor(0, 0, 0)
-  love.graphics.printf("Recebido do canal: " .. topico .. "\nMensagem:" .. mensagem,
-    
-    10, 2*(love.graphics.getHeight()/4)+60, 600, "left", 0 , 2, 2)
-  
-  love.graphics.print("Canal selecionado: " .. CanalEscolhido, 10, love.graphics.getHeight()/4 - 50, 0, 2, 2)
-  textbox_NovoCanal.draw()
-  button_MudarCanal.draw()
-  
-  button_PedirLocal.draw()
-  love.graphics.printf("Os pedidos são enviados para '" .. CanalPedidoLocal .. "' e as respostas ouvidas em '" .. CanalRespostaLocal .. "'.",
-                        150, 2*(love.graphics.getHeight()/4), 450, "left", 0, 1.5, 1.5)
-end
-
-function love.update(dt)
-  mqtt_client:handler()  
+function love.mousereleased( x, y, key)
+  botao_pedido.mousereleased(x, y, key)
+  botao_topico.mousereleased(x, y, key)
 end
 
 function love.textinput(text)
-  textbox_NovoCanal.textinput(text)
+  caixa_de_texto.textinput(text)
 end
