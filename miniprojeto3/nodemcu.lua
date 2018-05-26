@@ -3,16 +3,17 @@
 local chave = "AIzaSyDd7BIfb1wjikYXcitNt_wMwQXcz9jxqYw"
 
 ---- Variaveis para configuracao e conexao wifi
-local configurar_rede = false
+local configurar_rede = true
 local usuario = ""
 local senha = ""
     
 ---- Variaveis para configuracao do servidor mosquitto
 local topico_requisicao_geolocalizacao = "requisicao_geolocalizacao"
 local topico_geolocalizacao = "geolocalizacao"
+local alterar_chave = "alterar_chave"
 local nodemcu_topicos = {
     [topico_requisicao_geolocalizacao]=0, 
-    --[topico_geolocalizacao]=1
+    [alterar_chave]=1
 }
 local mqtt_client = nil
 local nome_cliente = "cliente_nodemcu"
@@ -133,6 +134,9 @@ local seguir_topicos = function()
             print("Mensagem recebida! Detalhes: Topico->".. topico .. ", Mensagem->" .. mensagem)
             if topico == topico_requisicao_geolocalizacao then
                 solicitar_geolocalizacao(mensagem)
+            elseif topico == alterar_chave then
+                chave = mensagem
+                print("Chave alterada com sucesso!")
             end
         end
         mqtt_client:on("message", messageCallback)
@@ -159,18 +163,18 @@ end
 
 -- Funcao responsavel por inicializar todos os itens necessarios da aplicacao
 local setup = function()
-    -- Configuração da conexão wifi
+    -- Configuracao da conexao wifi
     if configurar_rede then
         configurar_wifi()
     end
 
-    -- Inicialização dos LEDs
+    -- Inicializacao dos LEDs
     gpio.mode(led1, gpio.OUTPUT)
     gpio.mode(led2, gpio.OUTPUT)
     gpio.write(led2, gpio.LOW)
     gpio.write(led1, gpio.LOW)
     
-    -- Inicialização doa botões
+    -- Inicializaca�o doa botoes
     gpio.mode(1,gpio.INT,gpio.PULLUP)
     gpio.mode(2,gpio.INT,gpio.PULLUP)
 
