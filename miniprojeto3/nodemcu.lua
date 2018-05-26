@@ -6,13 +6,13 @@ local chave = "AIzaSyDd7BIfb1wjikYXcitNt_wMwQXcz9jxqYw"
 local configurar_rede = false
 local usuario = ""
 local senha = ""
-
+    
 ---- Variaveis para configuracao do servidor mosquitto
 local topico_requisicao_geolocalizacao = "requisicao_geolocalizacao"
 local topico_geolocalizacao = "geolocalizacao"
 local nodemcu_topicos = {
     [topico_requisicao_geolocalizacao]=0, 
-    [topico_geolocalizacao]=1
+    --[topico_geolocalizacao]=1
 }
 local mqtt_client = nil
 local nome_cliente = "cliente_nodemcu"
@@ -77,18 +77,14 @@ local obter_geolocalizacao = function(wifi_tables, topico)
     local response = function(code, data)
         local resposta_mensagem = ""
         local resposta_callback = nil
-        if topico == nil then
-            topico = topico_geolocalizacao
-        end
         if (code < 0) then
-            print("Falha no pedido de geolocalizacao. Codigo: ", code)
             resposta_mensagem = "Falha no pedido de geolocalizacao. Codigo: " .. code
             resposta_callback = callback_simples("Resposta de erro enviada")
         else
-            print("Obtenção da localização bem sucedida! Maiores informações abaixo:")
             resposta_mensagem = data
             resposta_callback = callback_simples("Resposta com a localizacao enviada")
         end
+        print(resposta_mensagem)
         mqtt_client:publish(
             topico,
             resposta_mensagem,
@@ -185,6 +181,6 @@ end
 setup()
 
 local get_localization_button_callback = function()
-    solicitar_geolocalizacao()
+    solicitar_geolocalizacao(topico_geolocalizacao)
 end
 gpio.trig(1, "down", get_localization_button_callback)
