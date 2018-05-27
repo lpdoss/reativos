@@ -1,6 +1,6 @@
 -- Variaveis globais da aplicacao
 ---- Variavel contendo a chave para obter a localizacao com o Google
-local chave = "AIzaSyDd7BIfb1wjikYXcitNt_wMwQXcz9jxqYw"
+local chave = "AIzaSyD5xN733jMsYjLH7hN_O2So-X9zPPw6JeQ"
 
 ---- Variaveis para configuracao e conexao wifi
 local configurar_rede = true
@@ -8,12 +8,15 @@ local usuario = ""
 local senha = ""
     
 ---- Variaveis para configuracao do servidor mosquitto
+local topico_requisicao_alterar_chave = "requisicao_alterar_chave"
 local topico_requisicao_geolocalizacao = "requisicao_geolocalizacao"
+local topico_requisicao_endereco = "requisicao_endereco"
 local topico_geolocalizacao = "geolocalizacao"
-local alterar_chave = "alterar_chave"
+
 local nodemcu_topicos = {
+    [topico_requisicao_alterar_chave]=2,
     [topico_requisicao_geolocalizacao]=0, 
-    [alterar_chave]=1
+    [topico_requisicao_endereco]=1    
 }
 local mqtt_client = nil
 local nome_cliente = "cliente_nodemcu"
@@ -21,6 +24,7 @@ local nome_cliente = "cliente_nodemcu"
 ---- Variaveis para configuracao do nodemcu
 local led1 = 3
 local led2 = 6
+local pode_clicar = true
 
 
 -- Funcoes gerais do projeto
@@ -116,6 +120,52 @@ local solicitar_geolocalizacao = function(topico)
 end
 
 
+---- Funcao responsavel por montar uma string de wifis da redondeza e passar para a funcao responsavel por obter a localizacao
+local obter_endereco = function(coordenadas_e_topico)
+    gpio.write(led2, gpio.HIGH)
+    local coordenadas, topico = string.match(coordenadas_e_topico, "([^;]+);([^;]+)")
+    if coordenadas and topico then
+        local url = "https://maps.googleapis.com/maps/api/geocode/json?result_type=street_address&latlng=" .. coordenadas .. "&key=" .. chave
+        local headers = "Content-Type: application/json\r\n"
+        local response = function(code, data)
+            local resposta_mensagem = ""
+            local resposta_callback = nil
+            if (code < 0) then
+                resposta_mensagem = "Falha no pedido de endereco. Codigo: " .. code
+                resposta_callback = callback_simples("Resposta de erro enviada")
+            else
+                resposta_mensagem = data
+                resposta_callback = callback_simples("Resposta com o endereco enviado")
+            end
+            mqtt_client:publish(
+                topico,
+                resposta_mensagem,
+                0,
+                0,
+                resposta_callback
+            )
+            print(resposta_mensagem)
+            gpio.write(led2, gpio.LOW)
+        end
+        http.get(url, headers, response)
+    else
+        resposta_mensagem = "Falha no pedido de endereco. Formato invalido: Formato enviado: " .. coordenadas_e_topico
+        resposta_callback = callback_simples("Resposta de erro enviada")
+        if topico then
+            mqtt_client:publish(
+                topico,
+                resposta_mensagem,
+                0,
+                0,
+                resposta_callback
+            )
+        end
+        print(resposta_mensagem)
+        gpio.write(led2, gpio.LOW)
+    end
+end
+
+
 -- Funcoes responsaveis pela comunicacao com o servidor mosquitto
 ---- Funcao responsavel por enviar mensagens para topicos especificados por parametro
 local enviar_mensagem = function(topico, mensagem, callback)
@@ -134,6 +184,8 @@ local seguir_topicos = function()
             print("Mensagem recebida! Detalhes: Topico->".. topico .. ", Mensagem->" .. mensagem)
             if topico == topico_requisicao_geolocalizacao then
                 solicitar_geolocalizacao(mensagem)
+            elseif topico == topico_requisicao_endereco then
+                obter_endereco(mensagem)
             elseif topico == alterar_chave then
                 chave = mensagem
                 print("Chave alterada com sucesso!")
@@ -148,7 +200,7 @@ local seguir_topicos = function()
 end
 
 ---- Funcao responsavel por conectar ao servidor mosquitto, 
----- seguindo todos os topicos citados na variavel global caso tenha havido êxito
+---- seguindo todos os topicos citados na variavel global caso tenha havido exito
 local conectar_servidor = function()
     local successCallback = function(client)
         print("Conectado com sucesso!")
@@ -163,18 +215,18 @@ end
 
 -- Funcao responsavel por inicializar todos os itens necessarios da aplicacao
 local setup = function()
-    -- Configuracao da conexao wifi
+    -- Configuração da conexao wifi
     if configurar_rede then
         configurar_wifi()
     end
 
-    -- Inicializacao dos LEDs
+    -- Inicialização dos LEDs
     gpio.mode(led1, gpio.OUTPUT)
     gpio.mode(led2, gpio.OUTPUT)
     gpio.write(led2, gpio.LOW)
     gpio.write(led1, gpio.LOW)
     
-    -- Inicializaca�o doa botoes
+    -- Inicializacao doa botoes
     gpio.mode(1,gpio.INT,gpio.PULLUP)
     gpio.mode(2,gpio.INT,gpio.PULLUP)
 
@@ -184,7 +236,18 @@ local setup = function()
 end
 setup()
 
+local validar_e_executar = function(funcao, parametro)
+    if pode_clicar then
+        pode_clicar = false
+        local timerCallback = function()
+            pode_clicar = true
+        end
+        tmr.alarm(0, 1000, tmr.ALARM_SINGLE, timerCallback)
+        funcao(parametro)
+    end
+end
+
 local get_localization_button_callback = function()
-    solicitar_geolocalizacao(topico_geolocalizacao)
+    validar_e_executar(solicitar_geolocalizacao, topico_geolocalizacao)
 end
 gpio.trig(1, "down", get_localization_button_callback)
