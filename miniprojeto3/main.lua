@@ -101,6 +101,9 @@ function mqtt_cb(topic, message)
   mensagem_raw = message
   if string.sub(message, 1, 1) == "{" then
     mensagem = json.decode(message)
+    if mensagem.location ~= nil then
+      PedidoLocal_CanalCoordenadas_textbox.setText(mensagem.location.lat..","..mensagem.location.lng)
+    end
   elseif string.sub(message, 1, string.len("Falha")) == "Falha" then
     mensagem = message
   else 

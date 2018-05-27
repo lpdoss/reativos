@@ -140,6 +140,10 @@ function GUI_Objects:newButton(x, y, text)
     getText = 
       function ()
         return text
+      end,
+    setText =  
+      function (new_text)
+        text = new_text
       end
     }
   end
